@@ -72,7 +72,6 @@ WaveShow::WaveShow(QWidget *parent)
         memset(pDispBuffer, 0, 600*10*MAX_CHANNEL*sizeof(float));
     /* setFrameStyle(NoFrame);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); */
-
 }
 
 
@@ -80,7 +79,6 @@ WaveShow::~WaveShow()
 {
     if(pDispBuffer) 
         delete[] pDispBuffer;
-
 }
 
 
@@ -89,7 +87,6 @@ void WaveShow::resizeEvent(QResizeEvent *event)
     Q_UNUSED(event);
     Wavemap = new QPixmap(size());
     Wavemap->fill(Qt::black);
-
 }
 
 void WaveShow::paintEvent(QPaintEvent *event)
@@ -99,8 +96,6 @@ void WaveShow::paintEvent(QPaintEvent *event)
     painter.setPen(QPen(Qt::white));/*,1,Qt::DashDotLine */
     painter.drawPixmap(QPoint(0,0), *Wavemap);
     painter.drawRect(QRect(0, 0, width()-1, height()-1));
-
-
 }
 
 long WaveShow::WaveDisplay(short *pDataBuffer, long nDataBytes)
@@ -254,14 +249,14 @@ void WaveShow::Draw_Ecgwave(short *sig,int Num)
 }
 
 
-void WaveShow::Draw_R(short *a,short *R2)
+void WaveShow::Draw_R(short *a,short *R2,int offset=0)
 {
     int i;
-    for(i=2;i<249;i++)
+    for(i=offset*820;i<offset*820+820;i++)
     {
         if (R2[i]==1)
         {
-            draw_square(i,a[i],3,0);
+            draw_square(i%820,a[i],3,0);
         }
     }
 }

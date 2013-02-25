@@ -80,14 +80,11 @@ void MonitorThread::readFilesInfo()
     if(atmel)
     {
         ioctl(atmel,0x81,0);
-
         do{
             byteread = read(atmel,buffer,64);
             /* 在这里对数据包作处理 */
-
         }while(byteread==64);
     }
-
 }
 
 void MonitorThread::readFileData()
@@ -95,14 +92,17 @@ void MonitorThread::readFileData()
     int byteread;
     unsigned long index=0;
 
-    file.setFileName("/home/cust/data/100.dat");
+    emit sGetAnn();
+
+    //file.setFileName("/usr/database/100s.dat");
+    file.setFileName("/home/zhaochong/data/100.dat");
     if(file.open(QIODevice::ReadOnly)){
         int i =0;
         do{
             byteread = file.read(pbuffer,64);
             pbuffer += 64;
 
-            QThread::msleep(100);
+            //QThread::msleep(100);
 
             i++;
 

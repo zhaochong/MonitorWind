@@ -31,7 +31,8 @@ public:
     GroupContainer *createBodyTempGroup();  
     GroupContainer *createPulseRateGroup();  
     GroupContainer *createBreathRateGroup();  
-    GroupContainer *createBloodPressGroup();  
+    GroupContainer *createBloodPressGroup();
+    GroupContainer *createAnalyseBlock();
 
 
     GroupContainer *heartRate;
@@ -39,6 +40,7 @@ public:
     GroupContainer *pulseRate;
     GroupContainer *breathRate;
     GroupContainer *bloodPress;
+    GroupContainer *analyseBlock;
 
     QLabel *timeLab;
     QLabel *heartLab;
@@ -72,6 +74,21 @@ public:
     QLabel *bloodDiastNum;
     QLabel *bloodExam;
     QPushButton *EcgBtn;
+    QPushButton *EcgMoveLeftBtn;
+    QPushButton *EcgMoveRightBtn;
+
+    QLabel *elapsedTime;
+    QLabel *startPoint;
+    QLabel *totalNumLab;
+    QLabel *foundNumLab;
+    QLabel *wrongNumLab;
+    QLabel *forgetNumLab;
+    QLabel *rightRateLab;
+    QLabel *totalNum;
+    QLabel *foundNum;
+    QLabel *wrongNum;
+    QLabel *forgetNum;
+    QLabel *rightRate;
     //QPushButton *MonitorSetBtn;
     // QLabel *bloodMark2;
 
@@ -93,18 +110,19 @@ public:
     MonitorThread *pthread;
     DataTransferThread *pDatathread;
     int N;
+    int offset;
     /******************************************************/
-    short sig[6000];
+    short sig[1000000];
     short sig1[6000];
     short sig2[6000];
-    short a[3000];
+    short a[6000];
     short aa1[3000];
     short a2[3000];
     short aa3[3000];
-    short diff[6000];
+    short diff[10000];
     short diff1[3000];
-    short R1[6000];
-    short R2[3000];
+    short R1[1000000];
+    short R2[6000];
     short Q[100];
     short S[100];
     short P[3000];
@@ -117,6 +135,9 @@ public:
     short PRtime[100];
     short STtime[100];
     short QTtime[100];
+    int rpoint[10000];
+    int ann[10000];
+    int sub;
 
 protected:
     /*void resizeEvent(QResizeEvent *event);*/
@@ -131,7 +152,10 @@ private slots:
     void setCurrentTime(int year, int mon, int day, int hour, int min, int sec);
     void activeWaveShow();
     void ecgAnalyse();
+    void ecgMoveRight();
+    void ecgMoveLeft();
     void ecgprocess();
+    void getAnn();
 
 private:
 

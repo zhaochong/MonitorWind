@@ -22,3 +22,17 @@ SOURCES += "DataTransferThread .cpp" \
            SetupWindow.cpp \
            WaveShow.cpp
 RESOURCES += MonitorWind.qrc
+
+win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../../../usr/lib/release/ -lwfdb
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../../../usr/lib/debug/ -lwfdb
+else:unix: LIBS += -L$$PWD/../../../../usr/lib/ -lwfdb
+
+INCLUDEPATH += $$PWD/../../../../usr/include
+DEPENDPATH += $$PWD/../../../../usr/include
+
+win32:CONFIG(release, debug|release): LIBS += -L$$PWD/../../../../usr/lib/i386-linux-gnu/release/ -lcurl
+else:win32:CONFIG(debug, debug|release): LIBS += -L$$PWD/../../../../usr/lib/i386-linux-gnu/debug/ -lcurl
+else:unix: LIBS += -L$$PWD/../../../../usr/lib/i386-linux-gnu/ -lcurl
+
+INCLUDEPATH += $$PWD/../../../../usr/lib/i386-linux-gnu
+DEPENDPATH += $$PWD/../../../../usr/lib/i386-linux-gnu

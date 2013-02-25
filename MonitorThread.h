@@ -49,6 +49,7 @@ public:
 
 signals:
     void sShowWave(char *pBuffer, int Num);
+    void sGetAnn();
 
 protected:
 

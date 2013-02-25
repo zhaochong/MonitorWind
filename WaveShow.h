@@ -59,7 +59,7 @@ public:
     void setWaveChannel(int channelNum);
     void setDataRange(int dataRang);
 
-    void Draw_R(short *a,short *R2);
+    void Draw_R(short *a,short *R2,int offset);
     void draw_square(int x, short y, int l,int k);
     void Draw_QRS(short *a, short *Q, short *S,short *R2);
     void Draw_Pwave(short *a, short *Pwave,short *P);

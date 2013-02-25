@@ -32,12 +32,14 @@
 #include <unistd.h>
 #include <sys/fcntl.h>
 #include <sys/ioctl.h>
+#include <wfdb/wfdb.h>
+#include <QTime>
 
 #include "MonitorWind.h"
 
 MonitorWind::MonitorWind()
 {
-    setGeometry(0,0,800,600);
+    setGeometry(0,0,1020,600);
     
     waveShow = new WaveShow(this);
     timer = new QTimer(this);
@@ -58,6 +60,7 @@ MonitorWind::MonitorWind()
     pulseRate = createPulseRateGroup();
     breathRate = createBreathRateGroup();
     bloodPress = createBloodPressGroup();
+    analyseBlock = createAnalyseBlock();
 
     QGridLayout *mainLayout = new QGridLayout;
     mainLayout->addWidget(heartRate,0,3,2,1);
@@ -65,21 +68,28 @@ MonitorWind::MonitorWind()
     mainLayout->addWidget(pulseRate,3,3,2,1);
     mainLayout->addWidget(breathRate,5,3);
     mainLayout->addWidget(bloodPress,6,3,3,1);
+    mainLayout->addWidget(analyseBlock,7,3);
     mainLayout->addWidget(waveShow,0,0,10,3);
     mainLayout->setMargin(4);
     mainLayout->setVerticalSpacing(0);
     mainLayout->setHorizontalSpacing(2);
-    setLayout(mainLayout); 
+    setLayout(mainLayout);
+
+    offset = 0;
+    analyseBlock->hide();
     
     QPalette pal;
-    pal.setColor(QPalette::Background,QColor(0,0,0));	
-    setPalette(pal); 
+    pal.setColor(QPalette::Background,QColor(0,0,0));
+    setPalette(pal);
 
     connect(timer,SIGNAL(timeout()), this, SLOT(activeWaveShow()));
 
-    connect(pDatathread, SIGNAL(sDataTransfer(int)),this, SLOT(dataTransfer(int)),Qt::BlockingQueuedConnection); 
+    connect(pDatathread, SIGNAL(sDataTransfer(int)),this, SLOT(dataTransfer(int)),Qt::BlockingQueuedConnection);
     connect(pthread, SIGNAL(sShowWave(char *, int)),this, SLOT(showWave(char *,int)),Qt::BlockingQueuedConnection);
-    
+    connect(pthread, SIGNAL(sGetAnn()),this,SLOT(getAnn()),Qt::BlockingQueuedConnection);
+
+    connect(EcgMoveLeftBtn, SIGNAL(clicked()), this, SLOT(ecgMoveLeft()));
+    connect(EcgMoveRightBtn, SIGNAL(clicked()), this, SLOT(ecgMoveRight()));
 
     connect(EcgBtn, SIGNAL(clicked()), this, SLOT(ecgAnalyse()));
     /* QueuedConnection DirectConnection BlockingQueuedConnection*/
@@ -126,7 +136,7 @@ GroupContainer* MonitorWind::createHeartGroup()
     timeLab->setAttribute(Qt::WA_TranslucentBackground,false);
     timeLab->setAutoFillBackground(true);
 
-    timeLab->setFont(QFont("simsun",14,QFont::Bold));
+    timeLab->setFont(QFont("simsun",12,QFont::Bold));
     timeLab->setAlignment(Qt::AlignCenter);
     timeLab->setPalette(timepal);
 
@@ -143,7 +153,7 @@ GroupContainer* MonitorWind::createHeartGroup()
     heartUnitLab->setFont(QFont("simsun",10,QFont::Bold));
     heartUnitLab->setPalette(pal);
 
-    heartNum = new QLabel(tr("172"));
+    heartNum = new QLabel(tr("72"));
     heartNum ->setAlignment(Qt::AlignCenter);
     heartNum->setFont(QFont("arialnb",54,QFont::Bold));
     heartNum->setPalette(pal);
@@ -210,7 +220,7 @@ GroupContainer* MonitorWind::createBodyTempGroup()
     QGridLayout *gridbox = new QGridLayout;
     gridbox->addWidget(tempLab,0,0);
     gridbox->addWidget(tempUnitLab,2,0);
-    gridbox->addWidget(tempNum ,1,1,3,1);
+    gridbox->addWidget(tempNum,1,1,3,1);
     gridbox->setMargin(2);
     gridbox->setVerticalSpacing(1);
     gridbox->setHorizontalSpacing(0);
@@ -240,7 +250,7 @@ GroupContainer* MonitorWind::createPulseRateGroup()
 
     pal.setColor(QPalette::WindowText,QColor(255,0,0));
 
-    pulseO2Num = new QLabel(tr("198"));
+    pulseO2Num = new QLabel(tr("98"));
     pulseO2Num->setAlignment(Qt::AlignCenter); //Qt::AlignVCenter | Qt::AlignRight
     pulseO2Num->setFont(QFont("arialnb",54,QFont::Bold));
     pulseO2Num->setPalette(pal);
@@ -319,7 +329,6 @@ GroupContainer* MonitorWind::createBreathRateGroup()
     gridbox->setHorizontalSpacing(0);
     pBreath->setLayout(gridbox);
     return pBreath;
-
 } 
 
 
@@ -417,17 +426,109 @@ GroupContainer* MonitorWind::createBloodPressGroup()
     return pBlood;
 }  
 
+GroupContainer* MonitorWind::createAnalyseBlock()
+{
+    QPalette pal,buttonpal;
+    pal.setColor(QPalette::WindowText,QColor(255,255,255));
+    GroupContainer *pAnalyse = new GroupContainer(this);
+    pAnalyse-> setFixedSize(190,600);
+    pAnalyse->setPalette(pal);
+
+    EcgMoveRightBtn = new QPushButton(tr(">"));
+    buttonpal = EcgMoveRightBtn->palette();
+    buttonpal.setColor(QPalette::ButtonText,QColor(255,255,255));
+    buttonpal.setColor(QPalette::Button,QColor(0,255,150));
+    EcgMoveRightBtn->setFont(QFont("wenquanyi",16,QFont::Bold));
+    EcgMoveRightBtn->setAutoDefault(true);
+    EcgMoveRightBtn->setPalette(buttonpal);
+
+    EcgMoveLeftBtn = new QPushButton(tr("<"));
+    buttonpal = EcgMoveLeftBtn->palette();
+    buttonpal.setColor(QPalette::ButtonText,QColor(255,255,255));
+    buttonpal.setColor(QPalette::Button,QColor(0,255,150));
+    EcgMoveLeftBtn->setFont(QFont("wenquanyi",16,QFont::Bold));
+    EcgMoveLeftBtn->setAutoDefault(true);
+    EcgMoveLeftBtn->setPalette(buttonpal);
+
+    elapsedTime = new QLabel(tr("运行时间:0"));
+    elapsedTime->setPalette(pal);
+    startPoint = new QLabel(tr("start:0"));
+    startPoint->setPalette(pal);
+    totalNumLab = new QLabel(tr("心拍总数"));
+    totalNumLab->setPalette(pal);
+    foundNumLab = new QLabel(tr("检出数"));
+    foundNumLab->setPalette(pal);
+    wrongNumLab = new QLabel(tr("误检数"));
+    wrongNumLab->setPalette(pal);
+    forgetNumLab = new QLabel(tr("漏检数"));
+    forgetNumLab->setPalette(pal);
+    rightRateLab = new QLabel(tr("正确率/%"));
+    rightRateLab->setPalette(pal);
+
+    pal.setColor(QPalette::WindowText,QColor(155,255,155));
+    totalNum = new QLabel(tr("2000"));
+    totalNum->setPalette(pal);
+    foundNum = new QLabel(tr("1990"));
+    foundNum->setPalette(pal);
+    wrongNum = new QLabel(tr("1"));
+    wrongNum->setPalette(pal);
+    forgetNum = new QLabel(tr("11"));
+    forgetNum->setPalette(pal);
+    rightRate = new QLabel(tr("99.23"));
+    rightRate->setPalette(pal);
+
+
+    QGridLayout *gridbox = new QGridLayout;
+    gridbox->addWidget(elapsedTime);
+    gridbox->addWidget(startPoint);
+    gridbox->addWidget(EcgMoveLeftBtn);
+    gridbox->addWidget(EcgMoveRightBtn);
+    gridbox->addWidget(totalNumLab);
+    gridbox->addWidget(totalNum);
+    gridbox->addWidget(foundNumLab);
+    gridbox->addWidget(foundNum);
+    gridbox->addWidget(wrongNumLab);
+    gridbox->addWidget(wrongNum);
+    gridbox->addWidget(forgetNumLab);
+    gridbox->addWidget(forgetNum);
+    gridbox->addWidget(rightRateLab);
+    gridbox->addWidget(rightRate);
+
+
+    pAnalyse->setLayout(gridbox);
+    return pAnalyse;
+}
+
+void MonitorWind::getAnn()
+{
+    QMessageBox::information(NULL, "读取文件中", "请点击OK后等待数秒");
+    //将注释中的r点读到ann[10000]数组中
+    WFDB_Anninfo a;
+    WFDB_Annotation annot;
+
+    a.name = "atr";
+    a.stat = WFDB_READ;
+    (void)sampfreq("mitdb/100");
+    annopen("mitdb/100",&a,1);
+    sub = 0;
+    while(getann(0,&annot)==0){
+        if(!(annot.aux!=NULL&&*annot.aux>0)){
+            ann[sub] = annot.time;
+            sub++;
+        }
+    }
+    ann[sub] = 0;
+}
+
 void MonitorWind::showWave(char *pBuffer,int Num)
 {
-
     /*printf("dataNum=%d..................\n",Num);
-   for(int j=0;j<Num;j++)
+    for(int j=0;j<Num;j++)
         printf("data=%02x\n",pBuffer[j]); */
     int i,k=0;
 
     if(cpyenabled)
     {
-
         for(i=0;i<Num;i +=3)
         {
             buffer[k] = (0x00ff & pBuffer[i]) | ((pBuffer[i+1] & 0x000f)<<8);
@@ -475,73 +576,93 @@ void MonitorWind::MonitorWindsetUp()
 //************************************************
 void MonitorWind::ecgprocess()
 {
-    short *p_data = data;
+    printf("ecgprocess%d",sub);
+    QTime time;
+    time.start();
 
-    int i;
-    for(i=0;i<6000;i++)
-    {
-        sig[i]=p_data[i*2];
-    }
-    int j,k;
-    for(j=2;j<5999;j++)
-    {
-        diff[j]=sig[j+1]-sig[j-1];
-    }
-    int r1;
-    for (r1=0;r1<6000;r1++)
-    {
-        R1[r1]=0;
-    }
-    int MaxSlope,MaxData,MaxDataGate,MaxSlopeGate;
-    MaxSlope=0;
-    MaxData=0;
-    for(k=2;k<500;k++)
-    {
-        if (sig[k]>=MaxData)
-        {
-            MaxData=sig[k];
+    for(int i=0;i<datanum/2&&i<1000000;i++){
+        sig[i] = data[i*2];
+        R1[i] = 0;
+        if(i>0){
+            //diff[i] = sig[i] - sig[i-1];
         }
     }
-    int k1;
-    for(k1=2;k1<500;k1++)
-    {
-        if(diff[k1]>=MaxSlope)
-        {
-            MaxSlope=diff[k1];
+    int MaxSlope=sig[1]-sig[0],MaxData=sig[0],MaxDataGate,MaxSlopeGate;
+    for(int i=1;i<500;i++){
+        if(sig[i]>MaxData){
+            MaxData = sig[i];
+        }
+        if((sig[i]-sig[i-1])>MaxSlope){
+            MaxSlope = (sig[i]-sig[i-1]);
         }
     }
     MaxDataGate=MaxData*0.6;
     MaxSlopeGate=MaxSlope*0.5;
-    int mdata,mm;
-    mdata=0;mm=0;
-    int k2,k3,k4;
-    for(k2=2;k2<6000-20;k2++)
-    {
-        if((diff[k2]>MaxSlopeGate)&&(sig[k2]>MaxDataGate))
-        {
-            mdata=sig[i];
-            mm=k2;
-            for(k3=k2;k3<k2+20;k3++)
-            {
-                if (sig[k3]>mdata)
-                {
-                    mdata=sig[k3];
-                    mm=k3;
+    int mdata=0,mm=0;
+    for(int i=5;i<datanum/2-20;i++){
+        if((sig[i]-sig[i-1])>MaxSlopeGate&&sig[i]>MaxDataGate){
+            mdata = sig[i];
+            mm = i;
+            for(int j=i+20;j>i-5;j--){
+                if(sig[j]>=mdata){
+                    mdata = sig[j];
+                    mm = j;
                 }
             }
-            for (k4=k2;k4>k2-5;k4--)
-            {
-                if (sig[k4]>mdata)
-                {
-                    mdata=sig[k4];
-                    mm=k4;
-                }
-            }
-            R1[mm]=1;
+            R1[mm] = 1;
         }
     }
+    //将r点存在rpoint[10000]中
+    int num = 0;
+    for(int i=0;i<datanum/2;i++){
+        if(R1[i]==1){
+            //printf("%d\n",i);
+            if(num==0||i-rpoint[num-1]>100){
+                rpoint[num] = i;
+                num++;
+            }
+        }
+    }
+
+    /*
+    int i=0;
+    for(i=0;i<num&&i<sub;i++){
+        printf("%d\t%d\t%d\n",i,rpoint[i],ann[i]);
+    }
+    for(;i<num;i++){
+        printf("%d\t\n",rpoint[i]);
+    }
+    for(;i<sub;i++){
+        printf("\t%d\n",ann[i]);
+    }*/
+
+    //比较数组rpoint和ann
+    int inum=0,jnum=0,i=0,j=0;
+    for(;i<num&&j<sub&&ann[j]<datanum/2;){
+        if(rpoint[i]-ann[j]>-5&&rpoint[i]-ann[j]<5){
+            i++;j++;
+        }else if(rpoint[i]<ann[j]){
+            //printf("%d\t%d\n",rpoint[i],ann[j]);
+            i++;
+            inum++;
+        }else{
+            //printf("%d\t%d\n",rpoint[i],ann[j]);
+            j++;
+        }
+    }
+
+    totalNum->setText(QString("%1").arg(j));
+    foundNum->setText(QString("%1").arg(num));
+    wrongNum->setText(QString("%1").arg(inum));
+    forgetNum->setText(QString("%1").arg(j-num+inum));
+    rightRate->setText(QString::number((float)(num-inum)/j*100,'f',2));
+
+    int time_Diff = time.elapsed();
+    float f = time_Diff/1000.0;
+    elapsedTime->setText(QString("运行时间：%1").arg(f));
+    /*
     int ii;
-    for(ii=1;ii<2999;ii++)
+    for(ii=1;ii<5999;ii++)
     {
         a[ii]=sig[ii];
     }
@@ -608,13 +729,15 @@ void MonitorWind::ecgprocess()
             qq1=qq1+1;
         }
     }
+    */
+    /*
     //去掉QRS波，为P波检测作好准备
     int a1n;
     for(a1n=1;a1n<3000;a1n++)
     {
         aa1[a1n]=a[a1n];
     }
-    int p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19/*,p20*/;
+    int p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18,p19;
     int pp1;
     pp1=1;
     for(p1=1;p1<2999;p1++)
@@ -810,7 +933,7 @@ void MonitorWind::ecgprocess()
     {
         aa3[a3n]=a2[a3n];
     }
-    int t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,/*t13,t14,t15,t16,*/t17,t18,t19;
+    int t1,t2,t3,t4,t5,t6,t7,t8,t9,t10,t11,t12,t17,t18,t19;
     int tt1;
     tt1=1;
     for(t1=1;t1<2999;t1++)
@@ -940,7 +1063,7 @@ void MonitorWind::ecgprocess()
     }
 
     int RRnum1,RRnum2,Total,Pnum,Qnum,Snum,Tnum;
-    int nn1,nn2,nn3/*,nn4,nn5,nn6,nn7,nn8,nn9,nn10*/;
+    int nn1,nn2,nn3;
     RRnum1=1;RRnum2=1;Total=1;Pnum=1;Qnum=1;Snum=1;Tnum=1;
     for(nn1=1;nn1<2999;nn1++)
     {
@@ -978,36 +1101,48 @@ void MonitorWind::ecgprocess()
             Total=Total+1;
         }
     }
+    */
 }
 
 
 void MonitorWind::ecgAnalyse()
 {
+    heartRate->hide();
+    bodyTemp->hide();
+    pulseRate->hide();
+    breathRate->hide();
+    bloodPress->hide();
+    analyseBlock->show();
     if(cpyenabled){
         cpyenabled = false;
-    }else{
-        cpyenabled = true;
     }
     /************************************************/
     ecgprocess();
-    for(int i=0;i<200;i++){
-        printf("Pwave[%d]=%d\n",i,Pwave[i]);
-    }
-    for(int i=0;i<200;i++){
-        printf("Twave[%d]=%d\n",i,Twave[i]);
-    }
-    for(int i=0;i<200;i++){
-        printf("Q[%d]=%d\n",i,Q[i]);
-    }
-    printf("sizeof(Pwave)=%d\n",sizeof(Pwave));
-    printf("sizeof(Twave)=%d\n",sizeof(Twave));
-    printf("sizeof(sig)=%d\n",sizeof(sig));
-    printf("sizeof(Q)=%d\n",sizeof(Q));
-    waveShow->Draw_Ecgwave(sig,1200);
-    //waveShow->Draw_R(a,R2);
-    waveShow->Draw_QRS(a, Q, S, R2);
+    waveShow->Draw_Ecgwave(sig,820);
+    waveShow->Draw_R(sig,R1,0);
+    //waveShow->Draw_QRS(a, Q, S, R2);
     //waveShow->Draw_Pwave(a, Pwave, P);
     //waveShow->Draw_Twave(a, Twave, T);
+}
+
+void MonitorWind::ecgMoveRight()
+{
+    if(offset<datanum/1200){
+        offset++;
+        startPoint->setText(QString("start:%1").arg(offset*820));
+        waveShow->Draw_Ecgwave(sig+offset*820,820);
+        waveShow->Draw_R(sig,R1,offset);
+    }
+}
+
+void MonitorWind::ecgMoveLeft()
+{
+    if(offset>0){
+        offset--;
+        startPoint->setText(QString("start:%1").arg(offset*820));
+        waveShow->Draw_Ecgwave(sig+offset*820,820);
+        waveShow->Draw_R(sig,R1,offset);
+    }
 }
 
 void MonitorWind::activeWaveShow()
@@ -1020,6 +1155,7 @@ void MonitorWind::activeWaveShow()
 
     timeLab->setText(strtime);
 
+    /*
     if(N%6==0)
     {
         heartNum->setNum(N*3);
@@ -1033,6 +1169,7 @@ void MonitorWind::activeWaveShow()
         bloodSystNum->setNum(N*3);
         bloodDiastNum->setNum(N*3);
     }
+    */
     /*  for(int i=0; i<32;i++)
           for(int j=0;j<4;j++)
              buffer[j+i*4] =(32*N+i)*10; */
